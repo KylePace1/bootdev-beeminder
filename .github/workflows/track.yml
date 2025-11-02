@@ -1,7 +1,7 @@
 name: Track Boot.dev XP
 on:
   schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
+    - cron: '0 0 * * *'  # Daily at midnight UTC
   workflow_dispatch:  # Manual trigger
 
 jobs:

@@ -121,11 +121,11 @@ def post_to_beeminder(value, comment=None):
         data['comment'] = comment
     
     try:
-        print(f"Posting to Beeminder: {value} XP")
+        print(f"Posting to Beeminder: value={value}, comment='{comment}'")
         response = requests.post(url, data=data)
-        
+
         if response.status_code == 200:
-            print(f"✓ Successfully posted {value} XP to Beeminder")
+            print(f"✓ Successfully posted to Beeminder")
             return True
         else:
             print(f"✗ Error posting to Beeminder: {response.status_code}")
@@ -143,7 +143,8 @@ def main():
     
     if xp is not None:
         print(f"\nCurrent XP: {xp}")
-        post_to_beeminder(xp, comment="Auto-tracked from Boot.dev")
+        # Post a value of 1 (indicating we studied today) with XP as comment
+        post_to_beeminder(1, comment=f"Current XP: {xp}")
     else:
         print("\n⚠ Failed to retrieve XP value")
         print("The page might be JavaScript-rendered. Try using the Selenium version instead.")
