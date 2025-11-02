@@ -1,164 +1,137 @@
 # Boot.dev XP Tracker for Beeminder
 
-Track your Boot.dev XP automatically and send it to Beeminder!
+Automatically track your Boot.dev study sessions to Beeminder using GitHub Actions. Runs daily at midnight PST and posts a "1" to your Beeminder goal (indicating you studied) with your current XP as a comment.
 
-## Setup
+## Quick Setup
 
-### 1. Install Dependencies
+### 1. Fork or Clone This Repository
 
+```bash
+git clone https://github.com/KylePace1/bootdev-beeminder.git
+cd bootdev-beeminder
+```
+
+### 2. Configure Your Settings
+
+Edit `bootdev_beeminder_simple.py` and update these lines:
+
+```python
+BOOTDEV_URL = "https://www.boot.dev/u/YOUR_USERNAME"  # Your Boot.dev profile
+BEEMINDER_USERNAME = "your_username"  # Your Beeminder username
+BEEMINDER_GOAL = "your_goal"  # Your Beeminder goal name
+```
+
+### 3. Get Your Beeminder Auth Token
+
+1. Log into [Beeminder](https://www.beeminder.com)
+2. Go to https://www.beeminder.com/settings/account
+3. Find your "Personal Auth Token"
+4. Copy it (you'll need it in the next step)
+
+### 4. Add GitHub Repository Secret
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Secrets and variables** → **Actions**
+3. Click **New repository secret**
+4. Name: `BEEMINDER_TOKEN`
+5. Value: Paste your Beeminder auth token
+6. Click **Add secret**
+
+### 5. Create Your Beeminder Goal
+
+1. Create a new goal on [Beeminder](https://www.beeminder.com)
+2. Name it to match what you set in step 2 (e.g., "programming")
+3. Set type to **"Do More"**
+4. Configure your rate (e.g., 5 days/week = 0.71/day)
+
+### 6. Push to GitHub
+
+```bash
+git add bootdev_beeminder_simple.py
+git commit -m "Configure settings for my account"
+git push
+```
+
+That's it! The workflow will automatically run every day at midnight PST.
+
+## How It Works
+
+- **Schedule**: Runs daily at midnight PST (8 AM UTC)
+- **What it tracks**: Posts a value of `1` to Beeminder (indicating you studied that day)
+- **Comment**: Includes your current Boot.dev XP in the comment
+- **Manual trigger**: You can also manually trigger the workflow from the Actions tab
+
+## Testing
+
+To test the workflow manually:
+
+1. Go to the **Actions** tab in your GitHub repository
+2. Click on **"Track Boot.dev XP"**
+3. Click **"Run workflow"**
+4. Check the logs to verify it's working correctly
+
+## Changing the Schedule
+
+Edit [.github/workflows/track.yml](.github/workflows/track.yml) and modify the cron expression:
+
+```yaml
+schedule:
+  - cron: '0 8 * * *'  # Daily at midnight PST (8 AM UTC)
+```
+
+Common schedules:
+- `'0 8 * * *'` - Daily at midnight PST
+- `'0 */12 * * *'` - Every 12 hours
+- `'0 0 * * 1,3,5'` - Mondays, Wednesdays, and Fridays at midnight UTC
+
+## Troubleshooting
+
+### Workflow Fails
+
+Check the Actions tab for error logs. Common issues:
+- `BEEMINDER_TOKEN` secret not set correctly
+- Incorrect username or goal name in the script
+- Boot.dev profile is private or URL changed
+
+### XP Not Parsing Correctly
+
+The script handles Boot.dev's concatenated level + XP display (e.g., "Level 14" + "960 XP" = "14960"). If you see incorrect values:
+
+1. Run the workflow manually and check logs
+2. Verify the XP extraction logic in `bootdev_beeminder_simple.py`
+
+### Test Locally
+
+Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-For the Selenium version, you'll also need Chrome/Chromium and ChromeDriver:
-```bash
-# On Ubuntu/Debian
-sudo apt-get install chromium-browser chromium-chromedriver
-
-# On macOS with Homebrew
-brew install chromedriver
-```
-
-### 2. Get Your Beeminder Auth Token
-
-1. Log into Beeminder
-2. Go to https://www.beeminder.com/settings/account
-3. Find your "Personal Auth Token"
-4. Copy it
-
-### 3. Create a Beeminder Goal
-
-1. Create a new goal on Beeminder (e.g., "bootdev_xp")
-2. Set it to "Do More" type
-3. Configure your yellow brick road
-
-### 4. Configure the Script
-
-Edit either `bootdev_beeminder_simple.py` or `bootdev_beeminder.py`:
-
-```python
-BEEMINDER_USERNAME = "your_username"  # Your Beeminder username
-BEEMINDER_GOAL = "bootdev_xp"  # Your goal name
-```
-
-### 5. Set Your Auth Token
-
+Run the script:
 ```bash
 export BEEMINDER_TOKEN='your_token_here'
-```
-
-Or add it to your `.bashrc` or `.zshrc`:
-```bash
-echo 'export BEEMINDER_TOKEN="your_token_here"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-## Usage
-
-### Try the Simple Version First
-
-```bash
 python3 bootdev_beeminder_simple.py
 ```
 
-This uses requests and BeautifulSoup. If Boot.dev's XP is visible in the HTML, this will work great!
+## Project Structure
 
-### If That Doesn't Work, Use Selenium
-
-```bash
-python3 bootdev_beeminder.py
 ```
-
-This uses a headless browser to handle JavaScript-rendered content.
-
-## Automating with Cron
-
-To run this automatically every day at 9 PM:
-
-```bash
-crontab -e
-```
-
-Add this line:
-```
-0 21 * * * cd /path/to/script && /usr/bin/python3 bootdev_beeminder_simple.py >> /tmp/bootdev_tracker.log 2>&1
-```
-
-Or for multiple times per day (every 6 hours):
-```
-0 */6 * * * cd /path/to/script && /usr/bin/python3 bootdev_beeminder_simple.py >> /tmp/bootdev_tracker.log 2>&1
-```
-
-## Troubleshooting
-
-### Can't Find XP Value
-
-Boot.dev might be rendering the XP with JavaScript. Try:
-
-1. Open https://www.boot.dev/u/kylepace in your browser
-2. Right-click on the XP number and select "Inspect"
-3. Look at the HTML element and its classes/IDs
-4. Update the script's selectors to match
-
-Example:
-```python
-# If the XP is in a span with class "xp-value"
-xp_element = soup.find('span', class_='xp-value')
-```
-
-### Beeminder API Errors
-
-- Make sure your auth token is correct
-- Verify your username and goal name are spelled correctly
-- Check that the goal exists and accepts manual data entry
-
-### Manual Testing
-
-Test just the scraping part:
-```python
-python3 -c "from bootdev_beeminder_simple import get_xp_from_bootdev; print(get_xp_from_bootdev())"
-```
-
-Test just the Beeminder posting:
-```python
-python3 -c "from bootdev_beeminder_simple import post_to_beeminder; post_to_beeminder(1234, 'test')"
-```
-
-## Advanced: Using GitHub Actions
-
-You can also run this in the cloud with GitHub Actions for free:
-
-1. Create a new GitHub repository
-2. Add these files to it
-3. Add your `BEEMINDER_TOKEN` as a repository secret
-4. Create `.github/workflows/track.yml`:
-
-```yaml
-name: Track Boot.dev XP
-on:
-  schedule:
-    - cron: '0 */6 * * *'  # Every 6 hours
-  workflow_dispatch:  # Manual trigger
-
-jobs:
-  track:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: python bootdev_beeminder_simple.py
-        env:
-          BEEMINDER_TOKEN: ${{ secrets.BEEMINDER_TOKEN }}
+.
+├── .github/workflows/track.yml    # GitHub Actions workflow
+├── bootdev_beeminder_simple.py    # Main tracking script
+├── requirements.txt               # Python dependencies
+└── README.md                      # This file
 ```
 
 ## Tips
 
-- Start with cumulative tracking (total XP) rather than daily XP
-- Set a reasonable goal rate based on your learning pace
-- Consider tracking "days studied" instead if XP growth is irregular
-- Use Beeminder's "odometer" feature if you want to track total XP
+- This tracks **days studied** (binary: yes/no), not cumulative XP
+- Perfect for accountability and building a study habit
+- Your XP is logged in the comment for reference
+- Free to run - GitHub Actions provides free minutes for public repos
+
+## License
+
+MIT
 
 Good luck with your learning goals! 🚀
