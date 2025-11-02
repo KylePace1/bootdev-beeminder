@@ -33,41 +33,32 @@ def get_level_and_xp_from_bootdev():
         soup = BeautifulSoup(response.content, 'html.parser')
         text = soup.get_text()
 
-        # Debug: Show the area around Level and XP
-        level_context = re.search(r'.{0,50}Level.{0,100}XP.{0,50}', text, re.IGNORECASE)
-        if level_context:
-            print(f"DEBUG - Context: '{level_context.group()}'")
+        # The page shows: "Level 14,132 XP" or "Level 141,132 XP"
+        # Pattern: Level [digits with optional commas] XP
+        pattern = r'Level\s+([\d,]+)\s*XP'
+        match = re.search(pattern, text, re.IGNORECASE)
 
-        # Find all numbers in the text near level/XP markers
-        # Look for "Level X" pattern - should give us just the level
-        level_match = re.search(r'Level\s+(\d+)', text, re.IGNORECASE)
+        if match:
+            # Extract the full number string (e.g., "141,132")
+            raw_match = match.group(1)
+            full_number = raw_match.replace(',', '')  # Remove commas: "141132"
 
-        # Find XP - but we need to find it AFTER "Level" to avoid concatenation
-        # Strategy: Look for the pattern more carefully
-        if level_match:
-            level = int(level_match.group(1))
+            print(f"DEBUG - Raw match: '{raw_match}', After comma removal: '{full_number}', Length: {len(full_number)}")
 
-            # Now find XP that comes after the level mention
-            # Look for numbers followed by "XP" after where we found the level
-            level_end_pos = level_match.end()
-            remaining_text = text[level_end_pos:]
+            # The number is concatenated: first 1-2 digits are level, rest is XP
+            # Strategy: try 2-digit level first, then 1-digit
+            if len(full_number) >= 4:  # Minimum: "1100" (level 1, xp 100)
+                # Try 2-digit level first
+                if len(full_number) >= 5:  # e.g., "141132" = level 14, xp 1132
+                    level = int(full_number[:2])
+                    xp = int(full_number[2:])
+                    print(f"DEBUG - 5+ digit branch: level={full_number[:2]}, xp={full_number[2:]}")
+                else:  # e.g., "1132" = level 1, xp 132
+                    level = int(full_number[0])
+                    xp = int(full_number[1:])
+                    print(f"DEBUG - 4 digit branch: level={full_number[0]}, xp={full_number[1:]}")
 
-            xp_match = re.search(r'(\d+)\s*XP', remaining_text, re.IGNORECASE)
-            if xp_match:
-                xp_raw = int(xp_match.group(1))
-
-                # The value might still be concatenated (e.g., "141132" when level is 14 and XP is 1132)
-                # Check if this number starts with our level
-                xp_raw_str = str(xp_raw)
-                level_str = str(level)
-
-                if xp_raw_str.startswith(level_str) and len(xp_raw_str) > len(level_str):
-                    # Strip the level prefix
-                    xp = int(xp_raw_str[len(level_str):])
-                else:
-                    xp = xp_raw
-
-                print(f"Found Level: {level}, XP: {xp}")
+                print(f"Found Level: {level}, XP: {xp} (from '{raw_match}')")
                 return (level, xp)
 
         print("Could not parse level and XP from text")
