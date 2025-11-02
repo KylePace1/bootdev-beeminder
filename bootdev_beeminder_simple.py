@@ -110,14 +110,16 @@ def get_last_xp_from_beeminder():
     url = f"https://www.beeminder.com/api/v1/users/{BEEMINDER_USERNAME}/goals/{BEEMINDER_GOAL}/datapoints.json"
 
     try:
-        response = requests.get(url, params={'auth_token': BEEMINDER_AUTH_TOKEN, 'count': 1, 'sort': 'daystamp'})
+        # Get all recent datapoints and sort by timestamp to find the most recent
+        response = requests.get(url, params={'auth_token': BEEMINDER_AUTH_TOKEN})
 
         if response.status_code == 200:
             datapoints = response.json()
             if datapoints and len(datapoints) > 0:
-                last_comment = datapoints[0].get('comment', '')
+                # Sort by timestamp descending to get most recent
+                sorted_datapoints = sorted(datapoints, key=lambda x: x.get('timestamp', 0), reverse=True)
+                last_comment = sorted_datapoints[0].get('comment', '')
                 # Extract XP from comment like "Current XP: 960"
-                import re
                 match = re.search(r'Current XP:\s*(\d+)', last_comment)
                 if match:
                     last_xp = int(match.group(1))
