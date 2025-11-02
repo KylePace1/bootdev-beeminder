@@ -18,94 +18,77 @@ BEEMINDER_USERNAME = "kyle"  # Replace with your Beeminder username
 BEEMINDER_GOAL = "programming"  # Replace with your goal name
 BEEMINDER_AUTH_TOKEN = os.environ.get("BEEMINDER_TOKEN")  # Set as environment variable
 
-def get_xp_from_bootdev():
-    """Try to scrape XP from Boot.dev profile"""
-    
+def get_level_and_xp_from_bootdev():
+    """Scrape both level and XP from Boot.dev profile, return as tuple (level, xp)"""
+
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
-    
+
     try:
         print(f"Fetching {BOOTDEV_URL}...")
         response = requests.get(BOOTDEV_URL, headers=headers)
         response.raise_for_status()
-        
+
         soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Search for XP in the HTML
-        # Look for patterns like "1234 XP" or similar
         text = soup.get_text()
 
-        # Try to find XP value with regex
-        # Look for patterns that specifically match XP (not level)
-        # The page likely shows "Level 14" and "960 XP" separately,
-        # but they might be concatenated in text as "14960"
-        # We want to find the number immediately before "XP"
+        # Find level - look for "Level X" pattern
+        level_match = re.search(r'Level\s+(\d+)', text, re.IGNORECASE)
+        level = int(level_match.group(1)) if level_match else None
 
-        # First, try to find a number directly before "XP" (with optional whitespace)
-        # Use word boundary to avoid matching partial numbers
+        # Find XP - look for "X XP" pattern
         xp_match = re.search(r'(\d+)\s*XP', text, re.IGNORECASE)
-        if xp_match:
-            xp_str = xp_match.group(1)
-            xp = int(xp_str)
+        xp_raw = int(xp_match.group(1)) if xp_match else None
 
-            # If the number is > 10000, it likely has level concatenated
-            # Boot.dev shows "Level 14" and "960 XP" but they get concatenated as "14960"
-            # Extract just the XP portion (last 3-4 digits)
-            if xp > 10000:
-                # Assume level is 1-2 digits, XP is typically 3 digits (until reaching 1000)
-                # Strategy: extract last 3 digits, unless that gives us < 100, then use 4 digits
-                xp_3_digits = xp % 1000  # 14960 -> 960
-                xp_4_digits = xp % 10000  # 14960 -> 4960
+        if level is not None and xp_raw is not None:
+            # The page concatenates level + XP (e.g., "14" + "4960" = "144960")
+            # We need to extract just the XP portion
+            # Strategy: convert both to strings and remove level prefix
+            level_str = str(level)
+            xp_raw_str = str(xp_raw)
 
-                # If 3-digit extraction gives a reasonable XP value (100-999), use it
-                # Otherwise use 4 digits (covers XP >= 1000)
-                if xp_3_digits >= 100:
-                    xp = xp_3_digits
-                else:
-                    xp = xp_4_digits
-                print(f"Found concatenated value, extracted XP: {xp}")
+            # If the raw value starts with the level, strip it
+            if xp_raw_str.startswith(level_str) and len(xp_raw_str) > len(level_str):
+                xp_str = xp_raw_str[len(level_str):]
+                xp = int(xp_str)
             else:
-                print(f"Found XP: {xp}")
-            return xp
+                # If not concatenated, use raw value
+                xp = xp_raw
 
-        # Fallback patterns
-        xp_patterns = [
-            r'XP[:\s]*(\d+)',
-            r'"xp"[:\s]*(\d+)',
-            r'experience[:\s]*(\d+)',
-        ]
+            print(f"Found Level: {level}, XP: {xp}")
+            return (level, xp)
 
-        for pattern in xp_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                xp = int(match.group(1))
-                print(f"Found XP: {xp} (pattern: {pattern})")
-                return xp
-        
-        # If not found in text, try to find in script tags (JavaScript variables)
+        # Fallback: try to find them in script tags
         scripts = soup.find_all('script')
         for script in scripts:
             if script.string:
-                for pattern in xp_patterns:
-                    match = re.search(pattern, script.string, re.IGNORECASE)
-                    if match:
-                        xp = int(match.group(1))
-                        print(f"Found XP in script: {xp}")
-                        return xp
-        
-        print("Could not find XP value in page")
-        return None
-        
+                if level is None:
+                    level_match = re.search(r'"level"[:\s]*(\d+)', script.string, re.IGNORECASE)
+                    if level_match:
+                        level = int(level_match.group(1))
+
+                if xp_raw is None:
+                    xp_match = re.search(r'"xp"[:\s]*(\d+)', script.string, re.IGNORECASE)
+                    if xp_match:
+                        xp = int(xp_match.group(1))
+
+                if level is not None and xp is not None:
+                    print(f"Found in script - Level: {level}, XP: {xp}")
+                    return (level, xp)
+
+        print("Could not find level and XP values in page")
+        return (None, None)
+
     except Exception as e:
         print(f"Error fetching Boot.dev page: {e}")
-        return None
+        return (None, None)
 
-def get_last_xp_from_beeminder():
-    """Get the last XP value from Beeminder datapoint comments"""
+def get_last_progress_from_beeminder():
+    """Get the last level and XP from Beeminder datapoint comments"""
 
     if not BEEMINDER_AUTH_TOKEN:
-        return None
+        return (None, None)
 
     url = f"https://www.beeminder.com/api/v1/users/{BEEMINDER_USERNAME}/goals/{BEEMINDER_GOAL}/datapoints.json"
 
@@ -125,20 +108,21 @@ def get_last_xp_from_beeminder():
                 # Find the first datapoint with our comment format
                 for datapoint in sorted_datapoints:
                     comment = datapoint.get('comment', '')
-                    # Extract XP from comment like "Current XP: 960"
-                    match = re.search(r'Current XP:\s*(\d+)', comment)
+                    # Extract level and XP from comment like "Level 14, XP: 960"
+                    match = re.search(r'Level\s+(\d+),\s*XP:\s*(\d+)', comment)
                     if match:
-                        last_xp = int(match.group(1))
-                        print(f"Last recorded XP: {last_xp} (from comment: '{comment}')")
-                        return last_xp
+                        last_level = int(match.group(1))
+                        last_xp = int(match.group(2))
+                        print(f"Last recorded: Level {last_level}, XP: {last_xp} (from comment: '{comment}')")
+                        return (last_level, last_xp)
 
-                print("No datapoint with 'Current XP' format found")
+                print("No datapoint with 'Level X, XP: Y' format found")
         else:
             print(f"API error: {response.text[:200]}")
-        return None
+        return (None, None)
     except Exception as e:
         print(f"Error fetching last datapoint: {e}")
-        return None
+        return (None, None)
 
 def post_to_beeminder(value, comment=None):
     """Post datapoint to Beeminder"""
@@ -174,33 +158,49 @@ def post_to_beeminder(value, comment=None):
         print(f"Error posting to Beeminder: {e}")
         return False
 
+def calculate_total_progress(level, xp):
+    """Calculate cumulative progress score: (level * 1000) + xp"""
+    return (level * 1000) + xp
+
 def main():
     print(f"=== Boot.dev XP Tracker ===")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-    # Get current XP from Boot.dev
-    current_xp = get_xp_from_bootdev()
+    # Get current level and XP from Boot.dev
+    current_level, current_xp = get_level_and_xp_from_bootdev()
 
-    if current_xp is None:
-        print("\n⚠ Failed to retrieve XP value")
-        print("Could not fetch XP from Boot.dev profile.")
+    if current_level is None or current_xp is None:
+        print("\n⚠ Failed to retrieve level and XP")
+        print("Could not fetch data from Boot.dev profile.")
         sys.exit(1)
 
-    print(f"\nCurrent XP: {current_xp}")
+    current_total = calculate_total_progress(current_level, current_xp)
+    print(f"\nCurrent: Level {current_level}, XP: {current_xp} (Total: {current_total})")
 
-    # Get last recorded XP from Beeminder
-    last_xp = get_last_xp_from_beeminder()
+    # Get last recorded level and XP from Beeminder
+    last_level, last_xp = get_last_progress_from_beeminder()
 
-    if last_xp is None:
+    if last_level is None or last_xp is None:
         print("No previous datapoint found - posting initial value")
-        post_to_beeminder(1, comment=f"Current XP: {current_xp}")
-    elif current_xp > last_xp:
-        xp_gained = current_xp - last_xp
-        print(f"✓ XP increased by {xp_gained}! ({last_xp} → {current_xp})")
-        post_to_beeminder(1, comment=f"Current XP: {current_xp} (+{xp_gained})")
+        post_to_beeminder(1, comment=f"Level {current_level}, XP: {current_xp}")
     else:
-        print(f"✗ No XP gained since last check (still at {current_xp})")
-        print("Skipping Beeminder update - no work done today")
+        last_total = calculate_total_progress(last_level, last_xp)
+        print(f"Last recorded: Level {last_level}, XP: {last_xp} (Total: {last_total})")
+
+        if current_total > last_total:
+            progress_gained = current_total - last_total
+            print(f"✓ Progress increased by {progress_gained}!")
+
+            # Create descriptive comment
+            if current_level > last_level:
+                comment = f"Level {current_level}, XP: {current_xp} (leveled up from {last_level}!)"
+            else:
+                comment = f"Level {current_level}, XP: {current_xp} (+{current_xp - last_xp} XP)"
+
+            post_to_beeminder(1, comment=comment)
+        else:
+            print(f"✗ No progress since last check")
+            print("Skipping Beeminder update - no work done today")
 
 if __name__ == "__main__":
     main()
