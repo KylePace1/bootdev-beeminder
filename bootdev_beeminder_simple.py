@@ -35,20 +35,47 @@ def get_xp_from_bootdev():
         # Search for XP in the HTML
         # Look for patterns like "1234 XP" or similar
         text = soup.get_text()
-        
+
         # Try to find XP value with regex
+        # Look for patterns that specifically match XP (not level)
+        # The page likely shows "Level 14" and "960 XP" separately,
+        # but they might be concatenated in text as "14960"
+        # We want to find the number immediately before "XP"
+
+        # First, try to find a number directly before "XP" (with optional whitespace)
+        # Use word boundary to avoid matching partial numbers
+        xp_match = re.search(r'(\d+)\s*XP', text, re.IGNORECASE)
+        if xp_match:
+            xp_str = xp_match.group(1)
+            xp = int(xp_str)
+
+            # If the number is > 10000, it likely has level concatenated
+            # Extract just the last 3-4 digits as XP
+            if xp > 10000:
+                # Assume level is 1-2 digits, XP is 3-4 digits
+                # 14960 -> 960, 9850 -> 850
+                xp_only = xp % 10000  # Get last 4 digits
+                if xp_only > 1000:
+                    xp = xp_only
+                else:
+                    xp = xp % 1000  # Get last 3 digits
+                print(f"Found concatenated value, extracted XP: {xp}")
+            else:
+                print(f"Found XP: {xp}")
+            return xp
+
+        # Fallback patterns
         xp_patterns = [
-            r'(\d+)\s*XP',
             r'XP[:\s]*(\d+)',
             r'"xp"[:\s]*(\d+)',
             r'experience[:\s]*(\d+)',
         ]
-        
+
         for pattern in xp_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 xp = int(match.group(1))
-                print(f"Found XP: {xp}")
+                print(f"Found XP: {xp} (pattern: {pattern})")
                 return xp
         
         # If not found in text, try to find in script tags (JavaScript variables)
