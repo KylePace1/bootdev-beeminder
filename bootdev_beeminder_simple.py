@@ -43,8 +43,6 @@ def get_level_and_xp_from_bootdev():
             raw_match = match.group(1)
             full_number = raw_match.replace(',', '')  # Remove commas: "141132"
 
-            print(f"DEBUG - Raw match: '{raw_match}', After comma removal: '{full_number}', Length: {len(full_number)}")
-
             # The number is concatenated: first 1-2 digits are level, rest is XP
             # Strategy: try 2-digit level first, then 1-digit
             if len(full_number) >= 4:  # Minimum: "1100" (level 1, xp 100)
@@ -52,11 +50,9 @@ def get_level_and_xp_from_bootdev():
                 if len(full_number) >= 5:  # e.g., "141132" = level 14, xp 1132
                     level = int(full_number[:2])
                     xp = int(full_number[2:])
-                    print(f"DEBUG - 5+ digit branch: level={full_number[:2]}, xp={full_number[2:]}")
                 else:  # e.g., "1132" = level 1, xp 132
                     level = int(full_number[0])
                     xp = int(full_number[1:])
-                    print(f"DEBUG - 4 digit branch: level={full_number[0]}, xp={full_number[1:]}")
 
                 print(f"Found Level: {level}, XP: {xp} (from '{raw_match}')")
                 return (level, xp)
@@ -74,7 +70,7 @@ def get_level_and_xp_from_bootdev():
                     if level_match:
                         level = int(level_match.group(1))
 
-                if xp_raw is None:
+                if xp is None:
                     xp_match = re.search(r'"xp"[:\s]*(\d+)', script.string, re.IGNORECASE)
                     if xp_match:
                         xp = int(xp_match.group(1))
