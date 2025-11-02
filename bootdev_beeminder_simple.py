@@ -50,15 +50,20 @@ def get_xp_from_bootdev():
             xp = int(xp_str)
 
             # If the number is > 10000, it likely has level concatenated
-            # Extract just the last 3-4 digits as XP
+            # Boot.dev shows "Level 14" and "960 XP" but they get concatenated as "14960"
+            # Extract just the XP portion (last 3-4 digits)
             if xp > 10000:
-                # Assume level is 1-2 digits, XP is 3-4 digits
-                # 14960 -> 960, 9850 -> 850
-                xp_only = xp % 10000  # Get last 4 digits
-                if xp_only > 1000:
-                    xp = xp_only
+                # Assume level is 1-2 digits, XP is typically 3 digits (until reaching 1000)
+                # Strategy: extract last 3 digits, unless that gives us < 100, then use 4 digits
+                xp_3_digits = xp % 1000  # 14960 -> 960
+                xp_4_digits = xp % 10000  # 14960 -> 4960
+
+                # If 3-digit extraction gives a reasonable XP value (100-999), use it
+                # Otherwise use 4 digits (covers XP >= 1000)
+                if xp_3_digits >= 100:
+                    xp = xp_3_digits
                 else:
-                    xp = xp % 1000  # Get last 3 digits
+                    xp = xp_4_digits
                 print(f"Found concatenated value, extracted XP: {xp}")
             else:
                 print(f"Found XP: {xp}")
