@@ -33,31 +33,41 @@ def get_level_and_xp_from_bootdev():
         soup = BeautifulSoup(response.content, 'html.parser')
         text = soup.get_text()
 
-        # Find level - look for "Level X" pattern
+        # Find all numbers in the text near level/XP markers
+        # Look for "Level X" pattern - should give us just the level
         level_match = re.search(r'Level\s+(\d+)', text, re.IGNORECASE)
-        level = int(level_match.group(1)) if level_match else None
 
-        # Find XP - look for "X XP" pattern
-        xp_match = re.search(r'(\d+)\s*XP', text, re.IGNORECASE)
-        xp_raw = int(xp_match.group(1)) if xp_match else None
+        # Find XP - but we need to find it AFTER "Level" to avoid concatenation
+        # Strategy: Look for the pattern more carefully
+        if level_match:
+            level = int(level_match.group(1))
 
-        if level is not None and xp_raw is not None:
-            # The page concatenates level + XP (e.g., "14" + "4960" = "144960")
-            # We need to extract just the XP portion
-            # Strategy: convert both to strings and remove level prefix
-            level_str = str(level)
-            xp_raw_str = str(xp_raw)
+            # Now find XP that comes after the level mention
+            # Look for numbers followed by "XP" after where we found the level
+            level_end_pos = level_match.end()
+            remaining_text = text[level_end_pos:]
 
-            # If the raw value starts with the level, strip it
-            if xp_raw_str.startswith(level_str) and len(xp_raw_str) > len(level_str):
-                xp_str = xp_raw_str[len(level_str):]
-                xp = int(xp_str)
-            else:
-                # If not concatenated, use raw value
-                xp = xp_raw
+            xp_match = re.search(r'(\d+)\s*XP', remaining_text, re.IGNORECASE)
+            if xp_match:
+                xp_raw = int(xp_match.group(1))
 
-            print(f"Found Level: {level}, XP: {xp}")
-            return (level, xp)
+                # The value might still be concatenated (e.g., "141132" when level is 14 and XP is 1132)
+                # Check if this number starts with our level
+                xp_raw_str = str(xp_raw)
+                level_str = str(level)
+
+                if xp_raw_str.startswith(level_str) and len(xp_raw_str) > len(level_str):
+                    # Strip the level prefix
+                    xp = int(xp_raw_str[len(level_str):])
+                else:
+                    xp = xp_raw
+
+                print(f"Found Level: {level}, XP: {xp}")
+                return (level, xp)
+
+        print("Could not parse level and XP from text")
+        level = None
+        xp = None
 
         # Fallback: try to find them in script tags
         scripts = soup.find_all('script')
