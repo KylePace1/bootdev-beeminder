@@ -1,0 +1,18 @@
+name: Track Boot.dev XP
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - run: python bootdev_beeminder_simple.py
+        env:
+          BEEMINDER_TOKEN: ${{ secrets.BEEMINDER_TOKEN }}
