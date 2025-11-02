@@ -121,16 +121,18 @@ def get_last_xp_from_beeminder():
             if datapoints and len(datapoints) > 0:
                 # Sort by timestamp descending to get most recent
                 sorted_datapoints = sorted(datapoints, key=lambda x: x.get('timestamp', 0), reverse=True)
-                last_comment = sorted_datapoints[0].get('comment', '')
-                print(f"Most recent comment: '{last_comment}'")
-                # Extract XP from comment like "Current XP: 960"
-                match = re.search(r'Current XP:\s*(\d+)', last_comment)
-                if match:
-                    last_xp = int(match.group(1))
-                    print(f"Last recorded XP: {last_xp}")
-                    return last_xp
-                else:
-                    print("Could not parse XP from comment format")
+
+                # Find the first datapoint with our comment format
+                for datapoint in sorted_datapoints:
+                    comment = datapoint.get('comment', '')
+                    # Extract XP from comment like "Current XP: 960"
+                    match = re.search(r'Current XP:\s*(\d+)', comment)
+                    if match:
+                        last_xp = int(match.group(1))
+                        print(f"Last recorded XP: {last_xp} (from comment: '{comment}')")
+                        return last_xp
+
+                print("No datapoint with 'Current XP' format found")
         else:
             print(f"API error: {response.text[:200]}")
         return None
