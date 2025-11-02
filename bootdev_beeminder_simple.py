@@ -101,25 +101,52 @@ def get_xp_from_bootdev():
         print(f"Error fetching Boot.dev page: {e}")
         return None
 
+def get_last_xp_from_beeminder():
+    """Get the last XP value from Beeminder datapoint comments"""
+
+    if not BEEMINDER_AUTH_TOKEN:
+        return None
+
+    url = f"https://www.beeminder.com/api/v1/users/{BEEMINDER_USERNAME}/goals/{BEEMINDER_GOAL}/datapoints.json"
+
+    try:
+        response = requests.get(url, params={'auth_token': BEEMINDER_AUTH_TOKEN, 'count': 1, 'sort': 'daystamp'})
+
+        if response.status_code == 200:
+            datapoints = response.json()
+            if datapoints and len(datapoints) > 0:
+                last_comment = datapoints[0].get('comment', '')
+                # Extract XP from comment like "Current XP: 960"
+                import re
+                match = re.search(r'Current XP:\s*(\d+)', last_comment)
+                if match:
+                    last_xp = int(match.group(1))
+                    print(f"Last recorded XP: {last_xp}")
+                    return last_xp
+        return None
+    except Exception as e:
+        print(f"Error fetching last datapoint: {e}")
+        return None
+
 def post_to_beeminder(value, comment=None):
     """Post datapoint to Beeminder"""
-    
+
     if not BEEMINDER_AUTH_TOKEN:
         print("Error: BEEMINDER_TOKEN environment variable not set")
         print("Set it with: export BEEMINDER_TOKEN='your_token_here'")
         sys.exit(1)
-    
+
     url = f"https://www.beeminder.com/api/v1/users/{BEEMINDER_USERNAME}/goals/{BEEMINDER_GOAL}/datapoints.json"
-    
+
     data = {
         'auth_token': BEEMINDER_AUTH_TOKEN,
         'value': value,
         'timestamp': int(time.time()),
     }
-    
+
     if comment:
         data['comment'] = comment
-    
+
     try:
         print(f"Posting to Beeminder: value={value}, comment='{comment}'")
         response = requests.post(url, data=data)
@@ -138,17 +165,30 @@ def post_to_beeminder(value, comment=None):
 def main():
     print(f"=== Boot.dev XP Tracker ===")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-    
-    xp = get_xp_from_bootdev()
-    
-    if xp is not None:
-        print(f"\nCurrent XP: {xp}")
-        # Post a value of 1 (indicating we studied today) with XP as comment
-        post_to_beeminder(1, comment=f"Current XP: {xp}")
-    else:
+
+    # Get current XP from Boot.dev
+    current_xp = get_xp_from_bootdev()
+
+    if current_xp is None:
         print("\n⚠ Failed to retrieve XP value")
-        print("The page might be JavaScript-rendered. Try using the Selenium version instead.")
+        print("Could not fetch XP from Boot.dev profile.")
         sys.exit(1)
+
+    print(f"\nCurrent XP: {current_xp}")
+
+    # Get last recorded XP from Beeminder
+    last_xp = get_last_xp_from_beeminder()
+
+    if last_xp is None:
+        print("No previous datapoint found - posting initial value")
+        post_to_beeminder(1, comment=f"Current XP: {current_xp}")
+    elif current_xp > last_xp:
+        xp_gained = current_xp - last_xp
+        print(f"✓ XP increased by {xp_gained}! ({last_xp} → {current_xp})")
+        post_to_beeminder(1, comment=f"Current XP: {current_xp} (+{xp_gained})")
+    else:
+        print(f"✗ No XP gained since last check (still at {current_xp})")
+        print("Skipping Beeminder update - no work done today")
 
 if __name__ == "__main__":
     main()
