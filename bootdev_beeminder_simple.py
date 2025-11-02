@@ -33,6 +33,11 @@ def get_level_and_xp_from_bootdev():
         soup = BeautifulSoup(response.content, 'html.parser')
         text = soup.get_text()
 
+        # Debug: Show the area around Level and XP
+        level_context = re.search(r'.{0,50}Level.{0,100}XP.{0,50}', text, re.IGNORECASE)
+        if level_context:
+            print(f"DEBUG - Context: '{level_context.group()}'")
+
         # Find all numbers in the text near level/XP markers
         # Look for "Level X" pattern - should give us just the level
         level_match = re.search(r'Level\s+(\d+)', text, re.IGNORECASE)
