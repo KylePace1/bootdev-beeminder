@@ -189,20 +189,27 @@ def main():
         last_total = calculate_total_progress(last_level, last_xp)
         print(f"Last recorded: Level {last_level}, XP: {last_xp} (Total: {last_total})")
 
-        if current_total > last_total:
-            progress_gained = current_total - last_total
-            print(f"✓ Progress increased by {progress_gained}!")
+        # Check for progress: either leveled up OR gained XP at same level
+        has_progress = False
 
-            # Create descriptive comment
-            if current_level > last_level:
-                comment = f"Level {current_level}, XP: {current_xp} (leveled up from {last_level}!)"
-            else:
-                comment = f"Level {current_level}, XP: {current_xp} (+{current_xp - last_xp} XP)"
-
-            post_to_beeminder(1, comment=comment)
+        if current_level > last_level:
+            # Leveled up!
+            has_progress = True
+            comment = f"Level {current_level}, XP: {current_xp} (leveled up from {last_level}!)"
+            print(f"✓ Leveled up from {last_level} to {current_level}!")
+        elif current_level == last_level and current_xp > last_xp:
+            # Same level, but gained XP
+            has_progress = True
+            xp_gained = current_xp - last_xp
+            comment = f"Level {current_level}, XP: {current_xp} (+{xp_gained} XP)"
+            print(f"✓ Gained {xp_gained} XP!")
         else:
+            # No progress or went backward (shouldn't happen)
             print(f"✗ No progress since last check")
             print("Skipping Beeminder update - no work done today")
+
+        if has_progress:
+            post_to_beeminder(1, comment=comment)
 
 if __name__ == "__main__":
     main()
